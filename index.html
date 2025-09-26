@@ -6,17 +6,6 @@
     <title>Vue Weather App</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <!-- Chosen Palette: Calm Harmony -->
-    <!-- Application Structure Plan: A single-page dashboard structure was chosen for its intuitive and direct user experience, ideal for a utility application like a weather app. The layout is divided into three primary, persistent sections: 1) A prominent top search bar for immediate city lookup. 2) A main content area displaying the detailed current weather and weekly forecast for the selected city. 3) A sidebar for managing and quickly accessing a list of saved favorite cities. This structure prioritizes the user's primary goal (checking weather) while making the secondary function (managing favorites) constantly accessible, leading to an efficient and user-friendly flow without navigating between different views. -->
-    <!-- Visualization & Content Choices: 
-        - City Search Input -> Goal: Location Selection -> Method: Text input field -> Interaction: User types and submits to fetch weather data -> Justification: Standard, universally understood method for user input.
-        - Current Weather -> Goal: Inform on immediate conditions -> Method: Large display card with key stats (temp, feels like, humidity, wind) -> Interaction: Static display with dynamic data -> Justification: Presents the most critical weather information in a highly scannable, hierarchical format.
-        - Weather Icons -> Goal: Quick visual representation of weather state -> Method: Unicode characters (emojis) mapped from API weather codes -> Interaction: Dynamic display based on data -> Justification: Provides clear visual cues without external image dependencies, adhering to the NO SVG constraint.
-        - 7-Day Forecast -> Goal: Show upcoming weather trends -> Method: A grid of daily summary cards -> Interaction: User can scan the upcoming week -> Justification: A standard and highly requested feature that provides valuable context in a compact format.
-        - Favorites List -> Goal: Personalize and speed up access -> Method: A clickable list of saved cities with a delete option -> Interaction: Click to load weather, click to remove -> Justification: Enhances user retention and utility by saving user preferences locally.
-        - NO SVG/Mermaid used.
-    -->
-    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
     <style>
         body {
             font-family: 'Inter', sans-serif;
