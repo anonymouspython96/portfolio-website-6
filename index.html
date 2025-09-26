@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vue Weather App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Chosen Palette: Calm Harmony -->
+    <!-- Application Structure Plan: A single-page dashboard structure was chosen for its intuitive and direct user experience, ideal for a utility application like a weather app. The layout is divided into three primary, persistent sections: 1) A prominent top search bar for immediate city lookup. 2) A main content area displaying the detailed current weather and weekly forecast for the selected city. 3) A sidebar for managing and quickly accessing a list of saved favorite cities. This structure prioritizes the user's primary goal (checking weather) while making the secondary function (managing favorites) constantly accessible, leading to an efficient and user-friendly flow without navigating between different views. -->
+    <!-- Visualization & Content Choices: 
+        - City Search Input -> Goal: Location Selection -> Method: Text input field -> Interaction: User types and submits to fetch weather data -> Justification: Standard, universally understood method for user input.
+        - Current Weather -> Goal: Inform on immediate conditions -> Method: Large display card with key stats (temp, feels like, humidity, wind) -> Interaction: Static display with dynamic data -> Justification: Presents the most critical weather information in a highly scannable, hierarchical format.
+        - Weather Icons -> Goal: Quick visual representation of weather state -> Method: Unicode characters (emojis) mapped from API weather codes -> Interaction: Dynamic display based on data -> Justification: Provides clear visual cues without external image dependencies, adhering to the NO SVG constraint.
+        - 7-Day Forecast -> Goal: Show upcoming weather trends -> Method: A grid of daily summary cards -> Interaction: User can scan the upcoming week -> Justification: A standard and highly requested feature that provides valuable context in a compact format.
+        - Favorites List -> Goal: Personalize and speed up access -> Method: A clickable list of saved cities with a delete option -> Interaction: Click to load weather, click to remove -> Justification: Enhances user retention and utility by saving user preferences locally.
+        - NO SVG/Mermaid used.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .app-bg {
+            background-color: #f0f4f8;
+            background-image: linear-gradient(to top, #accbee 0%, #e7f0fd 100%);
+        }
+        .card {
+            background-color: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .fade-enter-active, .fade-leave-active {
+            transition: opacity 0.5s ease;
+        }
+        .fade-enter-from, .fade-leave-to {
+            opacity: 0;
+        }
+        .list-enter-active, .list-leave-active {
+            transition: all 0.5s ease;
+        }
+        .list-enter-from, .list-leave-to {
+            opacity: 0;
+            transform: translateX(30px);
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 3px;
+        }
+    </style>
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+</head>
+<body class="app-bg min-h-screen">
+    <div id="app" class="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto text-gray-800">
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+            <div class="lg:col-span-3">
+                <header class="mb-6">
+                    <h1 class="text-3xl font-bold text-gray-700 mb-2">WeatherVue</h1>
+                    <p class="text-gray-500">Type a city name below to get the latest weather forecast.</p>
+                    <div class="mt-4 flex rounded-lg shadow-sm">
+                        <input
+                            type="text"
+                            v-model.trim="searchQuery"
+                            @keyup.enter="handleSearch"
+                            placeholder="e.g., Turin, Piedmont"
+                            class="flex-grow block w-full px-4 py-3 rounded-l-lg border-gray-200 focus:ring-blue-500 focus:border-blue-500 transition duration-150 ease-in-out sm:text-sm"
+                        >
+                        <button
+                            @click="handleSearch"
+                            class="px-4 py-2 bg-blue-500 text-white font-semibold rounded-r-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition"
+                        >
+                            Search
+                        </button>
+                    </div>
+                </header>
+
+                <main>
+                    <div v-if="isLoading" class="flex justify-center items-center h-64">
+                        <svg class="animate-spin -ml-1 mr-3 h-10 w-10 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </div>
+                    
+                    <transition name="fade" mode="out-in">
+                        <div v-if="errorMessage" class="card rounded-lg p-6 text-center text-red-600">
+                            <p class="font-bold text-lg">Error</p>
+                            <p>{{ errorMessage }}</p>
+                        </div>
+
+                        <div v-else-if="weatherData" class="space-y-6">
+                            <section id="current-weather" class="card rounded-xl p-6 shadow-lg">
+                                <div class="flex justify-between items-start">
+                                    <div>
+                                        <h2 class="text-2xl font-bold">{{ weatherData.city }}</h2>
+                                        <p class="text-gray-500">{{ weatherData.country }}</p>
+                                        <p class="text-gray-500 capitalize">{{ weatherData.current.description }}</p>
+                                    </div>
+                                    <button @click="toggleFavorite" class="text-3xl" :class="isFavorite ? 'text-yellow-400' : 'text-gray-300 hover:text-yellow-300'">
+                                        &#9733;
+                                    </button>
+                                </div>
+                                <div class="flex flex-col sm:flex-row items-center justify-center sm:justify-between text-center sm:text-left mt-4">
+                                    <div class="flex items-center">
+                                        <span class="text-7xl">{{ weatherData.current.icon }}</span>
+                                        <div class="ml-4">
+                                            <p class="text-6xl font-bold">{{ weatherData.current.temperature }}&deg;C</p>
+                                            <p class="text-gray-500">Feels like {{ weatherData.current.apparent_temperature }}&deg;C</p>
+                                        </div>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-x-6 gap-y-2 mt-6 sm:mt-0 text-sm">
+                                        <div class="font-semibold text-gray-500">Humidity</div>
+                                        <div>{{ weatherData.current.humidity }}%</div>
+                                        <div class="font-semibold text-gray-500">Wind Speed</div>
+                                        <div>{{ weatherData.current.wind_speed }} km/h</div>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section id="forecast">
+                                <h3 class="text-xl font-bold mb-4 text-gray-700">7-Day Forecast</h3>
+                                <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
+                                    <div v-for="day in weatherData.daily" :key="day.date" class="card rounded-lg p-3 text-center flex flex-col items-center shadow-md">
+                                        <p class="font-semibold text-sm">{{ day.dayOfWeek }}</p>
+                                        <span class="text-4xl my-2">{{ day.icon }}</span>
+                                        <p class="font-bold">{{ day.temp_max }}&deg;</p>
+                                        <p class="text-gray-500">{{ day.temp_min }}&deg;</p>
+                                    </div>
+                                </div>
+                            </section>
+                        </div>
+                         <div v-else class="text-center py-10 text-gray-500">
+                             <p>Search for a city to see the weather.</p>
+                         </div>
+                    </transition>
+                </main>
+            </div>
+            
+            <aside class="lg:col-span-1">
+                <div class="card rounded-xl p-4 shadow-lg sticky top-6">
+                    <h3 class="text-lg font-bold mb-3 border-b pb-2 text-gray-700">Favorites</h3>
+                    <div class="max-h-96 overflow-y-auto">
+                        <transition-group v-if="favorites.length > 0" name="list" tag="ul" class="space-y-2">
+                            <li v-for="fav in favorites" :key="fav.id" class="flex justify-between items-center p-2 rounded-md hover:bg-blue-100 transition-colors duration-200 cursor-pointer group">
+                                <span @click="loadFavorite(fav)" class="flex-grow">{{ fav.name }}, {{ fav.country }}</span>
+                                <button @click.stop="removeFavorite(fav)" class="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    &times;
+                                </button>
+                            </li>
+                        </transition-group>
+                        <p v-else class="text-sm text-gray-500 px-2 py-4">Your favorite cities will appear here.</p>
+                    </div>
+                </div>
+            </aside>
+
+        </div>
+    </div>
+
+    <script type="module">
+        const { createApp, ref, onMounted, computed, watch } = Vue;
+
+        const App = {
+            setup() {
+                const searchQuery = ref('');
+                const weatherData = ref(null);
+                const isLoading = ref(false);
+                const errorMessage = ref(null);
+                const favorites = ref([]);
+
+                const isFavorite = computed(() => {
+                    if (!weatherData.value) return false;
+                    return favorites.value.some(fav => fav.id === weatherData.value.id);
+                });
+                
+                const getWmoCodeDescription = (code) => {
+                    const codes = {
+                        0: { description: 'Clear sky', icon: '☀️' }, 1: { description: 'Mainly clear', icon: '🌤️' },
+                        2: { description: 'Partly cloudy', icon: '⛅️' }, 3: { description: 'Overcast', icon: '☁️' },
+                        45: { description: 'Fog', icon: '🌫️' }, 48: { description: 'Depositing rime fog', icon: '🌫️' },
+                        51: { description: 'Light drizzle', icon: '🌦️' }, 53: { description: 'Moderate drizzle', icon: '🌦️' },
+                        55: { description: 'Dense drizzle', icon: '🌦️' }, 56: { description: 'Light freezing drizzle', icon: '🥶' },
+                        57: { description: 'Dense freezing drizzle', icon: '🥶' }, 61: { description: 'Slight rain', icon: '🌧️' },
+                        63: { description: 'Moderate rain', icon: '🌧️' }, 65: { description: 'Heavy rain', icon: '🌧️' },
+                        66: { description: 'Light freezing rain', icon: '🥶' }, 67: { description: 'Heavy freezing rain', icon: '🥶' },
+                        71: { description: 'Slight snow fall', icon: '❄️' }, 73: { description: 'Moderate snow fall', icon: '❄️' },
+                        75: { description: 'Heavy snow fall', icon: '❄️' }, 77: { description: 'Snow grains', icon: '❄️' },
+                        80: { description: 'Slight rain showers', icon: '🌦️' }, 81: { description: 'Moderate rain showers', icon: '🌦️' },
+                        82: { description: 'Violent rain showers', icon: '⛈️' }, 85: { description: 'Slight snow showers', icon: '🌨️' },
+                        86: { description: 'Heavy snow showers', icon: '🌨️' }, 95: { description: 'Thunderstorm', icon: ' thunderstorms' },
+                        96: { description: 'Thunderstorm with slight hail', icon: '⛈️' }, 99: { description: 'Thunderstorm with heavy hail', icon: '⛈️' }
+                    };
+                    return codes[code] || { description: 'Unknown', icon: '🤷' };
+                };
+                
+                const fetchWeather = async (city, lat, lon, country, id) => {
+                    isLoading.value = true;
+                    errorMessage.value = null;
+                    weatherData.value = null;
+                    
+                    try {
+                        const weatherApiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto`;
+                        const response = await fetch(weatherApiUrl);
+                        if (!response.ok) throw new Error('Weather data not available.');
+                        const data = await response.json();
+
+                        const current = data.current;
+                        const daily = data.daily;
+
+                        const wmoInfo = getWmoCodeDescription(current.weather_code);
+                        const processedData = {
+                            id: id,
+                            city: city,
+                            country: country,
+                            current: {
+                                temperature: Math.round(current.temperature_2m),
+                                apparent_temperature: Math.round(current.apparent_temperature),
+                                humidity: current.relative_humidity_2m,
+                                wind_speed: Math.round(current.wind_speed_10m),
+                                description: wmoInfo.description,
+                                icon: wmoInfo.icon
+                            },
+                            daily: daily.time.map((date, index) => {
+                                const dayWmoInfo = getWmoCodeDescription(daily.weather_code[index]);
+                                return {
+                                    date: date,
+                                    dayOfWeek: new Date(date).toLocaleDateString('en-US', { weekday: 'short' }),
+                                    temp_max: Math.round(daily.temperature_2m_max[index]),
+                                    temp_min: Math.round(daily.temperature_2m_min[index]),
+                                    icon: dayWmoInfo.icon
+                                }
+                            }).slice(0, 7)
+                        };
+                        weatherData.value = processedData;
+
+                    } catch (error) {
+                        errorMessage.value = `Failed to fetch weather data. Please try again. (${error.message})`;
+                    } finally {
+                        isLoading.value = false;
+                    }
+                };
+                
+                const handleSearch = async () => {
+                    if (!searchQuery.value) return;
+                    isLoading.value = true;
+                    errorMessage.value = null;
+                    
+                    try {
+                        const geoApiUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(searchQuery.value)}&count=1&language=en&format=json`;
+                        const response = await fetch(geoApiUrl);
+                        if (!response.ok) throw new Error('Could not find location.');
+                        const data = await response.json();
+                        
+                        if (!data.results || data.results.length === 0) {
+                            throw new Error(`Could not find a city named "${searchQuery.value}".`);
+                        }
+                        const location = data.results[0];
+                        await fetchWeather(location.name, location.latitude, location.longitude, location.country, location.id);
+                        searchQuery.value = '';
+
+                    } catch(error) {
+                        errorMessage.value = error.message;
+                        weatherData.value = null;
+                    } finally {
+                        isLoading.value = false;
+                    }
+                };
+
+                const toggleFavorite = () => {
+                    if (!weatherData.value) return;
+                    if (isFavorite.value) {
+                        removeFavorite({ id: weatherData.value.id });
+                    } else {
+                        addToFavorites();
+                    }
+                };
+
+                const addToFavorites = () => {
+                    if (!weatherData.value || isFavorite.value) return;
+                    const newFavorite = {
+                        id: weatherData.value.id,
+                        name: weatherData.value.city,
+                        country: weatherData.value.country,
+                        latitude: weatherData.value.latitude,
+                        longitude: weatherData.value.longitude
+                    };
+                    favorites.value.push(newFavorite);
+                };
+
+                const removeFavorite = (favToRemove) => {
+                    favorites.value = favorites.value.filter(fav => fav.id !== favToRemove.id);
+                };
+
+                const loadFavorite = async (fav) => {
+                    isLoading.value = true;
+                    errorMessage.value = null;
+                    try {
+                        const geoApiUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(fav.name)}&count=1&language=en&format=json`;
+                        const response = await fetch(geoApiUrl);
+                        const data = await response.json();
+                        if (data.results && data.results.length > 0) {
+                            const location = data.results[0];
+                            await fetchWeather(location.name, location.latitude, location.longitude, location.country, location.id);
+                        } else {
+                           throw new Error("Could not re-fetch favorite location data.");
+                        }
+                    } catch(error) {
+                        errorMessage.value = error.message;
+                        removeFavorite(fav); 
+                    } finally {
+                         isLoading.value = false;
+                    }
+                };
+
+                onMounted(() => {
+                    const savedFavorites = localStorage.getItem('weatherapp_favorites');
+                    if (savedFavorites) {
+                        favorites.value = JSON.parse(savedFavorites);
+                    }
+                    if (favorites.value.length > 0) {
+                        loadFavorite(favorites.value[0]);
+                    } else {
+                        searchQuery.value = 'Turin, Piedmont';
+                        handleSearch();
+                    }
+                });
+
+                watch(favorites, (newFavorites) => {
+                    localStorage.setItem('weatherapp_favorites', JSON.stringify(newFavorites));
+                }, { deep: true });
+
+                return {
+                    searchQuery,
+                    weatherData,
+                    isLoading,
+                    errorMessage,
+                    favorites,
+                    handleSearch,
+                    isFavorite,
+                    toggleFavorite,
+                    removeFavorite,
+                    loadFavorite
+                };
+            }
+        };
+
+        createApp(App).mount('#app');
+    </script>
+</body>
+</html>
